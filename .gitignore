@@ -3,6 +3,7 @@
 /.phpunit.result.cache
 /.idea/
 /.vscode/
+/.env
 /.env.local
 /.env.*.local
 /public/bundles/
