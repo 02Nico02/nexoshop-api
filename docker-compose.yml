@@ -1,0 +1,40 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:80"
+    environment:
+      APP_ENV: dev
+      APP_DEBUG: 1
+      APP_SECRET: change-me-please
+      DATABASE_URL: mysql://nexoshop:nexoshop@db:3306/nexoshop_api?serverVersion=8.0.36&charset=utf8mb4
+    volumes:
+      - ./:/var/www/html
+      - vendor_data:/var/www/html/vendor
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: mysql:8.0
+    command: --default-authentication-plugin=mysql_native_password
+    environment:
+      MYSQL_DATABASE: nexoshop_api
+      MYSQL_USER: nexoshop
+      MYSQL_PASSWORD: nexoshop
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - "3306:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -proot --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  db_data:
+  vendor_data:
