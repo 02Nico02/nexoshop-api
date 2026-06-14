@@ -430,19 +430,23 @@ La cobertura puede ampliarse en futuras iteraciones.
 
 ### Documentación Swagger
 
-(docs/capturas/swagger-openapi.png)
+![Swagger con endpoints principales](docs/capturas/swagger-openapi.png)
 
 ### Healthcheck
 
-(docs/capturas/healthcheck.png)
+![Respuesta de /api/health](docs/capturas/healthcheck.png)
 
 ### Catálogo de productos
 
-(docs/capturas/catalogo-productos.png)
+![Respuesta de /api/products](docs/capturas/catalogo-productos.png)
 
 ### Creación de pedido
 
-(docs/capturas/creacion-pedido.png)
+![Prueba de POST /api/orders](docs/capturas/creacion-pedido.png)
+
+### Base de datos en Adminer
+
+![Tablas principales en Adminer](docs/capturas/adminer-tablas.png)
 
 ## Próximos pasos
 
