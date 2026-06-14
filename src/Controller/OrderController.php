@@ -5,8 +5,10 @@ namespace App\Controller;
 use App\Dto\Order\CheckoutItemData;
 use App\Dto\Order\CreateOrderRequest;
 use App\Entity\Order;
+use App\Exception\ApiException;
 use App\Repository\OrderRepository;
 use App\Service\OrderService;
+use App\Service\ApiResponder;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -16,32 +18,34 @@ use Symfony\Component\Validator\Validator\ValidatorInterface;
 class OrderController extends AbstractController
 {
     #[Route('/api/orders', methods: ['GET'])]
-    public function index(OrderRepository $orderRepository): JsonResponse
+    public function index(OrderRepository $orderRepository, ApiResponder $apiResponder): JsonResponse
     {
         $orders = array_map(fn (Order $order) => $this->normalizeOrderSummary($order), $orderRepository->findRecent());
 
-        return $this->json(['data' => $orders, 'count' => count($orders)]);
+        return $apiResponder->list($orders, [
+            'total' => count($orders),
+        ]);
     }
 
     #[Route('/api/orders/{id<\\d+>}', methods: ['GET'])]
-    public function show(int $id, OrderRepository $orderRepository): JsonResponse
+    public function show(int $id, OrderRepository $orderRepository, ApiResponder $apiResponder): JsonResponse
     {
         $order = $orderRepository->find($id);
 
         if (!$order) {
-            return $this->json(['error' => 'Pedido no encontrado'], 404);
+            return $apiResponder->error('ORDER_NOT_FOUND', 'Pedido no encontrado', 404);
         }
 
-        return $this->json($this->normalizeOrderDetail($order));
+        return $apiResponder->detail($this->normalizeOrderDetail($order));
     }
 
     #[Route('/api/orders', methods: ['POST'])]
-    public function create(Request $request, ValidatorInterface $validator, OrderService $orderService): JsonResponse
+    public function create(Request $request, ValidatorInterface $validator, OrderService $orderService, ApiResponder $apiResponder): JsonResponse
     {
         try {
             $payload = $request->toArray();
         } catch (\Throwable) {
-            return $this->json(['error' => 'JSON invalido'], 400);
+            return $apiResponder->error('INVALID_JSON', 'JSON invalido', 400);
         }
 
         $dto = $this->mapRequestToDto($payload);
@@ -51,45 +55,51 @@ class OrderController extends AbstractController
             $errors = [];
             foreach ($violations as $violation) {
                 $errors[] = [
-                    'field' => trim((string) $violation->getPropertyPath(), '[]'),
+                    'field' => $this->normalizeViolationPath((string) $violation->getPropertyPath()),
                     'message' => $violation->getMessage(),
                 ];
             }
 
-            return $this->json(['errors' => $errors], 422);
+            return $apiResponder->validationErrors($errors);
         }
 
         try {
             $order = $orderService->create($dto);
-        } catch (\Symfony\Component\HttpKernel\Exception\BadRequestHttpException $exception) {
-            return $this->json(['error' => $exception->getMessage()], 400);
+        } catch (ApiException $exception) {
+            return $apiResponder->error(
+                $exception->getErrorCode(),
+                $exception->getMessage(),
+                $exception->getStatusCode(),
+                $exception->getDetails()
+            );
         } catch (\Throwable) {
-            return $this->json(['error' => 'No se pudo crear el pedido'], 500);
+            return $apiResponder->error('ORDER_CREATE_FAILED', 'No se pudo crear el pedido', 500);
         }
 
-        return $this->json($this->normalizeOrderDetail($order), 201);
+        return $apiResponder->detail($this->normalizeOrderDetail($order), 201);
     }
 
     private function mapRequestToDto(array $payload): CreateOrderRequest
     {
         $dto = new CreateOrderRequest();
 
-        $dto->customer->name = (string) ($payload['customer']['name'] ?? '');
-        $dto->customer->email = (string) ($payload['customer']['email'] ?? '');
-        $dto->customer->phone = (string) ($payload['customer']['phone'] ?? '');
+        $dto->customer->name = $this->payloadString($payload, ['customer', 'name']);
+        $dto->customer->email = $this->payloadString($payload, ['customer', 'email']);
+        $dto->customer->phone = $this->payloadString($payload, ['customer', 'phone']);
 
-        $dto->shippingAddress->street = (string) ($payload['shippingAddress']['street'] ?? '');
-        $dto->shippingAddress->city = (string) ($payload['shippingAddress']['city'] ?? '');
-        $dto->shippingAddress->province = (string) ($payload['shippingAddress']['province'] ?? '');
-        $dto->shippingAddress->postcode = (string) ($payload['shippingAddress']['postcode'] ?? '');
-        $dto->shippingAddress->reference = isset($payload['shippingAddress']['reference']) ? (string) $payload['shippingAddress']['reference'] : null;
+        $dto->shippingAddress->street = $this->payloadString($payload, ['shippingAddress', 'street']);
+        $dto->shippingAddress->city = $this->payloadString($payload, ['shippingAddress', 'city']);
+        $dto->shippingAddress->province = $this->payloadString($payload, ['shippingAddress', 'province']);
+        $dto->shippingAddress->postcode = $this->payloadString($payload, ['shippingAddress', 'postcode']);
+        $dto->shippingAddress->reference = $this->payloadNullableString($payload, ['shippingAddress', 'reference']);
 
-        $dto->shippingMethod = (string) ($payload['shippingMethod'] ?? '');
-        $dto->paymentMethod = (string) ($payload['paymentMethod'] ?? '');
-        $dto->paymentDetails = isset($payload['paymentDetails']) && is_array($payload['paymentDetails']) ? $payload['paymentDetails'] : null;
+        $dto->shippingMethod = $this->payloadString($payload, ['shippingMethod']);
+        $dto->paymentMethod = $this->payloadString($payload, ['paymentMethod']);
+        $paymentDetails = $this->payloadArray($payload, ['paymentDetails']);
+        $dto->paymentDetails = $paymentDetails !== [] ? $paymentDetails : null;
 
         $dto->items = [];
-        foreach (($payload['items'] ?? []) as $itemPayload) {
+        foreach ($this->payloadArray($payload, ['items']) as $itemPayload) {
             if (!is_array($itemPayload)) {
                 continue;
             }
@@ -102,6 +112,53 @@ class OrderController extends AbstractController
         }
 
         return $dto;
+    }
+
+    private function payloadString(array $payload, array $path): string
+    {
+        $value = $this->payloadValue($payload, $path);
+        return is_scalar($value) ? trim((string) $value) : '';
+    }
+
+    private function payloadNullableString(array $payload, array $path): ?string
+    {
+        $value = $this->payloadValue($payload, $path);
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return is_scalar($value) ? trim((string) $value) : null;
+    }
+
+    /**
+     * @return array<int|string, mixed>
+     */
+    private function payloadArray(array $payload, array $path): array
+    {
+        $value = $this->payloadValue($payload, $path);
+        return is_array($value) ? $value : [];
+    }
+
+    private function payloadValue(array $payload, array $path): mixed
+    {
+        $current = $payload;
+        foreach ($path as $segment) {
+            if (!is_array($current) || !array_key_exists($segment, $current)) {
+                return null;
+            }
+
+            $current = $current[$segment];
+        }
+
+        return $current;
+    }
+
+    private function normalizeViolationPath(string $propertyPath): string
+    {
+        $normalized = str_replace(['[', ']'], ['.', ''], $propertyPath);
+        $normalized = preg_replace('/\.+/', '.', $normalized) ?? $normalized;
+
+        return trim($normalized, '.');
     }
 
     private function normalizeOrderSummary(Order $order): array

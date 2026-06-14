@@ -30,6 +30,67 @@ class ProductRepository extends ServiceEntityRepository
      */
     public function findByFilters(array $filters): array
     {
+        return $this->createFilteredQueryBuilder($filters)
+            ->distinct()
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
+     * @param array{
+     *     search?:string|null,
+     *     categoryIds?: array<int>,
+     *     minPrice?:int|null,
+     *     maxPrice?:int|null,
+     *     featured?:bool|null,
+     *     sort?:string|null,
+     *     attributes?: array<string, string>
+     * } $filters
+     * @return array{data: Product[], totalItems: int, totalPages: int, page: int, limit: int}
+     */
+    public function paginateByFilters(array $filters, int $page = 1, int $limit = 12): array
+    {
+        $page = max(1, $page);
+        $limit = min(max(1, $limit), 50);
+
+        $baseQb = $this->createFilteredQueryBuilder($filters);
+
+        $countQb = clone $baseQb;
+        $totalItems = (int) $countQb
+            ->select('COUNT(DISTINCT p.id)')
+            ->resetDQLPart('orderBy')
+            ->getQuery()
+            ->getSingleScalarResult();
+
+        $data = $baseQb
+            ->distinct()
+            ->setFirstResult(($page - 1) * $limit)
+            ->setMaxResults($limit)
+            ->getQuery()
+            ->getResult();
+
+        return [
+            'data' => $data,
+            'totalItems' => $totalItems,
+            'totalPages' => $totalItems > 0 ? (int) ceil($totalItems / $limit) : 0,
+            'page' => $page,
+            'limit' => $limit,
+        ];
+    }
+
+    /**
+     * @param array{
+     *     search?:string|null,
+     *     categoryIds?: array<int>,
+     *     minPrice?:int|null,
+     *     maxPrice?:int|null,
+     *     featured?:bool|null,
+     *     sort?:string|null,
+     *     attributes?: array<string, string>
+     * } $filters
+     */
+    private function createFilteredQueryBuilder(array $filters)
+    {
         $qb = $this->createQueryBuilder('p')
             ->leftJoin('p.category', 'c')
             ->addSelect('c')
@@ -86,7 +147,7 @@ class ProductRepository extends ServiceEntityRepository
             default => $qb->orderBy('p.createdAt', 'DESC'),
         };
 
-        return $qb->distinct()->getQuery()->getResult();
+        return $qb;
     }
 
     public function findOneBySlug(string $slug): ?Product

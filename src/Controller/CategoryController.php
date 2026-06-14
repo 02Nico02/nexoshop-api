@@ -4,6 +4,7 @@ namespace App\Controller;
 
 use App\Entity\Category;
 use App\Repository\CategoryRepository;
+use App\Service\ApiResponder;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\Routing\Attribute\Route;
@@ -11,49 +12,50 @@ use Symfony\Component\Routing\Attribute\Route;
 class CategoryController extends AbstractController
 {
     #[Route('/api/categories/tree', methods: ['GET'])]
-    public function tree(CategoryRepository $categoryRepository): JsonResponse
+    public function tree(CategoryRepository $categoryRepository, ApiResponder $apiResponder): JsonResponse
     {
         $tree = $categoryRepository->findTree();
 
-        return $this->json([
-            'data' => $tree,
-            'count' => count($tree),
+        return $apiResponder->list($tree, [
+            'total' => count($tree),
         ]);
     }
 
     #[Route('/api/categories', methods: ['GET'])]
-    public function index(CategoryRepository $categoryRepository): JsonResponse
+    public function index(CategoryRepository $categoryRepository, ApiResponder $apiResponder): JsonResponse
     {
         $categories = array_map(
             fn (Category $category) => $this->normalizeCategory($category),
             $categoryRepository->findOrdered()
         );
 
-        return $this->json(['data' => $categories, 'count' => count($categories)]);
+        return $apiResponder->list($categories, [
+            'total' => count($categories),
+        ]);
     }
 
     #[Route('/api/categories/{id<\\d+>}', methods: ['GET'])]
-    public function show(int $id, CategoryRepository $categoryRepository): JsonResponse
+    public function show(int $id, CategoryRepository $categoryRepository, ApiResponder $apiResponder): JsonResponse
     {
         $category = $categoryRepository->find($id);
 
         if (!$category) {
-            return $this->json(['error' => 'Categoria no encontrada'], 404);
+            return $apiResponder->error('CATEGORY_NOT_FOUND', 'Categoria no encontrada', 404);
         }
 
-        return $this->json($this->normalizeCategory($category));
+        return $apiResponder->detail($this->normalizeCategory($category));
     }
 
     #[Route('/api/categories/slug/{slug}', methods: ['GET'])]
-    public function showBySlug(string $slug, CategoryRepository $categoryRepository): JsonResponse
+    public function showBySlug(string $slug, CategoryRepository $categoryRepository, ApiResponder $apiResponder): JsonResponse
     {
         $category = $categoryRepository->findOneBySlug($slug);
 
         if (!$category) {
-            return $this->json(['error' => 'Categoria no encontrada'], 404);
+            return $apiResponder->error('CATEGORY_NOT_FOUND', 'Categoria no encontrada', 404);
         }
 
-        return $this->json($this->normalizeCategory($category));
+        return $apiResponder->detail($this->normalizeCategory($category));
     }
 
     private function normalizeCategory(Category $category): array

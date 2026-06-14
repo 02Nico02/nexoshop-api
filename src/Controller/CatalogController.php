@@ -6,6 +6,7 @@ use App\Entity\Product;
 use App\Entity\ProductAttribute;
 use App\Repository\CategoryRepository;
 use App\Repository\ProductRepository;
+use App\Service\ApiResponder;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -14,14 +15,14 @@ use Symfony\Component\Routing\Attribute\Route;
 class CatalogController extends AbstractController
 {
     #[Route('/api/catalog/facets', methods: ['GET'])]
-    public function facets(Request $request, CategoryRepository $categoryRepository, ProductRepository $productRepository): JsonResponse
+    public function facets(Request $request, CategoryRepository $categoryRepository, ProductRepository $productRepository, ApiResponder $apiResponder): JsonResponse
     {
         $categoryIdentifier = $request->query->has('category') ? $request->query->getString('category') : null;
         $subcategoryIdentifier = $request->query->has('subcategory') ? $request->query->getString('subcategory') : null;
         $categoryIds = $categoryRepository->resolveContextCategoryIds($categoryIdentifier, $subcategoryIdentifier);
 
         if (($categoryIdentifier !== null || $subcategoryIdentifier !== null) && $categoryIds === []) {
-            return $this->json([
+            return $apiResponder->detail([
                 'context' => [
                     'category' => $categoryIdentifier,
                     'subcategory' => $subcategoryIdentifier,
@@ -37,7 +38,7 @@ class CatalogController extends AbstractController
         ]);
 
         if ($products === []) {
-            return $this->json([
+            return $apiResponder->detail([
                 'context' => [
                     'category' => $categoryIdentifier,
                     'subcategory' => $subcategoryIdentifier,
@@ -47,7 +48,7 @@ class CatalogController extends AbstractController
             ]);
         }
 
-        return $this->json([
+        return $apiResponder->detail([
             'context' => [
                 'category' => $categoryIdentifier,
                 'subcategory' => $subcategoryIdentifier,

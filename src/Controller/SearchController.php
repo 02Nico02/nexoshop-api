@@ -5,6 +5,7 @@ namespace App\Controller;
 use App\Entity\Category;
 use App\Repository\CategoryRepository;
 use App\Repository\ProductRepository;
+use App\Service\ApiResponder;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -13,12 +14,12 @@ use Symfony\Component\Routing\Attribute\Route;
 class SearchController extends AbstractController
 {
     #[Route('/api/search/suggestions', methods: ['GET'])]
-    public function suggestions(Request $request, ProductRepository $productRepository, CategoryRepository $categoryRepository): JsonResponse
+    public function suggestions(Request $request, ProductRepository $productRepository, CategoryRepository $categoryRepository, ApiResponder $apiResponder): JsonResponse
     {
         $term = trim($request->query->getString('q', ''));
 
         if ($term === '') {
-            return $this->json([]);
+            return $apiResponder->list([], ['total' => 0]);
         }
 
         $suggestions = [];
@@ -52,7 +53,11 @@ class SearchController extends AbstractController
 
         $suggestions = $this->deduplicateSuggestions($suggestions);
 
-        return $this->json(array_slice($suggestions, 0, 10));
+        $suggestions = array_slice($suggestions, 0, 10);
+
+        return $apiResponder->list($suggestions, [
+            'total' => count($suggestions),
+        ]);
     }
 
     private function buildCategoryHint(?Category $category): ?string

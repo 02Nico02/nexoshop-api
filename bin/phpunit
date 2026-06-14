@@ -1,0 +1,10 @@
+#!/usr/bin/env php
+<?php
+
+if (file_exists(dirname(__DIR__).'/vendor/phpunit/phpunit/phpunit')) {
+    require dirname(__DIR__).'/vendor/phpunit/phpunit/phpunit';
+    return 0;
+}
+
+fwrite(STDERR, "PHPUnit no esta instalado. Ejecuta composer install.\n");
+return 1;

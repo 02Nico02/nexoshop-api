@@ -5,11 +5,11 @@ namespace App\Service;
 use App\Dto\Order\CreateOrderRequest;
 use App\Entity\Order;
 use App\Entity\OrderItem;
+use App\Exception\ApiException;
 use App\Repository\PaymentMethodRepository;
 use App\Repository\ProductRepository;
 use App\Repository\ShippingMethodRepository;
 use Doctrine\ORM\EntityManagerInterface;
-use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 
 class OrderService
 {
@@ -26,20 +26,21 @@ class OrderService
     {
         $shippingMethod = $this->shippingMethodRepository->findOneBy(['code' => $request->shippingMethod, 'enabled' => true]);
         if (!$shippingMethod) {
-            throw new BadRequestHttpException('Metodo de envio invalido');
+            throw ApiException::badRequest('SHIPPING_METHOD_INVALID', 'Metodo de envio invalido');
         }
 
         $paymentMethod = $this->paymentMethodRepository->findOneBy(['code' => $request->paymentMethod, 'enabled' => true]);
         if (!$paymentMethod) {
-            throw new BadRequestHttpException('Metodo de pago invalido');
+            throw ApiException::badRequest('PAYMENT_METHOD_INVALID', 'Metodo de pago invalido');
         }
 
         if ($paymentMethod->isRequiresCardData()) {
-            $cardHolder = trim((string) ($request->paymentDetails['cardHolder'] ?? ''));
-            $lastFourDigits = trim((string) ($request->paymentDetails['lastFourDigits'] ?? ''));
+            $paymentDetails = $request->paymentDetails ?? [];
+            $cardHolder = trim((string) ($paymentDetails['cardHolder'] ?? ''));
+            $lastFourDigits = trim((string) ($paymentDetails['lastFourDigits'] ?? ''));
 
             if ($cardHolder === '' || $lastFourDigits === '') {
-                throw new BadRequestHttpException('Los datos de tarjeta son requeridos para este metodo de pago');
+                throw ApiException::badRequest('PAYMENT_DETAILS_REQUIRED', 'Los datos de tarjeta son requeridos para este metodo de pago');
             }
         }
 
@@ -66,13 +67,17 @@ class OrderService
         foreach ($request->items as $itemData) {
             $product = $this->productRepository->find($itemData->productId);
             if (!$product || !$product->isEnabled()) {
-                throw new BadRequestHttpException('Producto no encontrado o deshabilitado');
+                throw ApiException::notFound('PRODUCT_NOT_FOUND', 'Producto no encontrado o deshabilitado', [
+                    'productId' => $itemData->productId,
+                ]);
             }
 
             $variant = null;
             if ($product->getVariants()->count() > 0) {
                 if ($itemData->variantId === null) {
-                    throw new BadRequestHttpException('La variante es requerida para este producto');
+                    throw ApiException::badRequest('VARIANT_REQUIRED', 'La variante es requerida para este producto', [
+                        'productId' => $itemData->productId,
+                    ]);
                 }
 
                 foreach ($product->getVariants() as $candidate) {
@@ -83,15 +88,25 @@ class OrderService
                 }
 
                 if (!$variant || !$variant->isEnabled()) {
-                    throw new BadRequestHttpException('Variante invalida o deshabilitada');
+                    throw ApiException::notFound('VARIANT_NOT_FOUND', 'Variante invalida o deshabilitada', [
+                        'productId' => $itemData->productId,
+                        'variantId' => $itemData->variantId,
+                    ]);
                 }
             } elseif ($itemData->variantId !== null) {
-                throw new BadRequestHttpException('El producto no admite variantes');
+                throw ApiException::badRequest('VARIANT_NOT_ALLOWED', 'El producto no admite variantes', [
+                    'productId' => $itemData->productId,
+                    'variantId' => $itemData->variantId,
+                ]);
             }
 
             $availableStock = $variant ? $variant->getStock() : $product->getStock();
             if ($itemData->quantity > $availableStock) {
-                throw new BadRequestHttpException('Stock insuficiente');
+                throw ApiException::badRequest('INSUFFICIENT_STOCK', 'Stock insuficiente', [
+                    'productId' => $itemData->productId,
+                    'variantId' => $itemData->variantId,
+                    'availableStock' => $availableStock,
+                ]);
             }
 
             $unitPrice = $this->pricingService->resolveUnitPrice($product, $variant);

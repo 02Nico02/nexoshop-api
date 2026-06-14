@@ -4,6 +4,7 @@ namespace App\Controller;
 
 use App\Entity\PaymentMethod;
 use App\Repository\PaymentMethodRepository;
+use App\Service\ApiResponder;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\Routing\Attribute\Route;
@@ -11,7 +12,7 @@ use Symfony\Component\Routing\Attribute\Route;
 class PaymentMethodController extends AbstractController
 {
     #[Route('/api/payment-methods', methods: ['GET'])]
-    public function index(PaymentMethodRepository $paymentMethodRepository): JsonResponse
+    public function index(PaymentMethodRepository $paymentMethodRepository, ApiResponder $apiResponder): JsonResponse
     {
         $methods = array_map(
             fn (PaymentMethod $method) => [
@@ -27,6 +28,8 @@ class PaymentMethodController extends AbstractController
             $paymentMethodRepository->findActiveOrdered()
         );
 
-        return $this->json(['data' => $methods, 'count' => count($methods)]);
+        return $apiResponder->list($methods, [
+            'total' => count($methods),
+        ]);
     }
 }

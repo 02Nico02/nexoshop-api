@@ -9,6 +9,7 @@ use App\Entity\Product;
 use App\Entity\ProductVariant;
 use App\Repository\CategoryRepository;
 use App\Repository\ProductRepository;
+use App\Service\ApiResponder;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -17,22 +18,21 @@ use Symfony\Component\Routing\Attribute\Route;
 class ProductController extends AbstractController
 {
     #[Route('/api/products', methods: ['GET'])]
-    public function index(Request $request, ProductRepository $productRepository, CategoryRepository $categoryRepository): JsonResponse
+    public function index(Request $request, ProductRepository $productRepository, CategoryRepository $categoryRepository, ApiResponder $apiResponder): JsonResponse
     {
         $categoryIdentifier = $request->query->has('category') ? $request->query->getString('category') : null;
         $subcategoryIdentifier = $request->query->has('subcategory') ? $request->query->getString('subcategory') : null;
         $categoryIds = $categoryRepository->resolveContextCategoryIds($categoryIdentifier, $subcategoryIdentifier);
         $attributeFilters = $request->query->all('attribute');
+        $page = max(1, $request->query->getInt('page', 1));
+        $limit = min(max(1, $request->query->getInt('limit', 12)), 50);
 
         if (($categoryIdentifier !== null || $subcategoryIdentifier !== null) && $categoryIds === []) {
-            return $this->json([
-                'data' => [],
-                'count' => 0,
-                'filters' => [],
-                'context' => [
-                    'category' => $categoryIdentifier,
-                    'subcategory' => $subcategoryIdentifier,
-                ],
+            return $apiResponder->list([], [
+                'page' => $page,
+                'limit' => $limit,
+                'totalItems' => 0,
+                'totalPages' => 0,
             ]);
         }
 
@@ -46,44 +46,42 @@ class ProductController extends AbstractController
             'attributes' => is_array($attributeFilters) ? $attributeFilters : [],
         ];
 
+        $paginated = $productRepository->paginateByFilters($filters, $page, $limit);
         $products = array_map(
             fn (Product $product) => $this->normalizeProductSummary($product),
-            $productRepository->findByFilters($filters)
+            $paginated['data']
         );
 
-        return $this->json([
-            'data' => $products,
-            'count' => count($products),
-            'filters' => array_filter($filters, static fn ($value) => $value !== null && $value !== ''),
-            'context' => [
-                'category' => $categoryIdentifier,
-                'subcategory' => $subcategoryIdentifier,
-            ],
+        return $apiResponder->list($products, [
+            'page' => $paginated['page'],
+            'limit' => $paginated['limit'],
+            'totalItems' => $paginated['totalItems'],
+            'totalPages' => $paginated['totalPages'],
         ]);
     }
 
     #[Route('/api/products/{id<\\d+>}', methods: ['GET'])]
-    public function show(int $id, ProductRepository $productRepository): JsonResponse
+    public function show(int $id, ProductRepository $productRepository, ApiResponder $apiResponder): JsonResponse
     {
         $product = $productRepository->find($id);
 
         if (!$product) {
-            return $this->json(['error' => 'Producto no encontrado'], 404);
+            return $apiResponder->error('PRODUCT_NOT_FOUND', 'Producto no encontrado', 404);
         }
 
-        return $this->json($this->normalizeProductDetail($product));
+        return $apiResponder->detail($this->normalizeProductDetail($product));
     }
 
     #[Route('/api/products/slug/{slug}', methods: ['GET'])]
-    public function showBySlug(string $slug, ProductRepository $productRepository): JsonResponse
+    public function showBySlug(string $slug, ProductRepository $productRepository, ApiResponder $apiResponder): JsonResponse
     {
         $product = $productRepository->findOneBySlug($slug);
 
         if (!$product) {
-            return $this->json(['error' => 'Producto no encontrado'], 404);
+            return $apiResponder->error('PRODUCT_NOT_FOUND', 'Producto no encontrado', 404);
         }
 
-        return $this->json($this->normalizeProductDetail($product));
+        return $apiResponder->detail($this->normalizeProductDetail($product));
     }
 
     private function normalizeProductSummary(Product $product): array
