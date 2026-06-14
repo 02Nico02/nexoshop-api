@@ -14,7 +14,7 @@ COPY .docker/php/conf.d/app.ini /usr/local/etc/php/conf.d/app.ini
 
 WORKDIR /var/www/html
 
-COPY composer.json ./
+COPY composer.json composer.lock ./
 RUN composer install --no-interaction --no-scripts --prefer-dist
 
 COPY . .
