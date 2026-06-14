@@ -430,23 +430,19 @@ La cobertura puede ampliarse en futuras iteraciones.
 
 ### Documentación Swagger
 
-[captura pendiente: Swagger con endpoints principales]
+(docs/capturas/swagger-openapi.png)
 
 ### Healthcheck
 
-[captura pendiente: respuesta de `/api/health`]
+(docs/capturas/healthcheck.png)
 
 ### Catálogo de productos
 
-[captura pendiente: respuesta de `/api/products`]
+(docs/capturas/catalogo-productos.png)
 
 ### Creación de pedido
 
-[captura pendiente: prueba de `POST /api/orders`]
-
-### Base de datos en Adminer
-
-[captura pendiente: tablas principales en Adminer]
+(docs/capturas/creacion-pedido.png)
 
 ## Próximos pasos
 
