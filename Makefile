@@ -14,10 +14,10 @@ bash:
 \tdocker compose exec app bash
 
 migrate:
-\tdocker compose exec app php bin/console doctrine:migrations:migrate
+\tdocker compose exec app php bin/console doctrine:migrations:migrate -n
 
 fixtures:
-\tdocker compose exec app php bin/console doctrine:fixtures:load
+\tdocker compose exec app php bin/console doctrine:fixtures:load -n
 
 reset-db:
 \tdocker compose exec app php bin/console doctrine:database:drop --force

@@ -6,7 +6,7 @@ NexoShop API es una API REST desarrollada con Symfony para modelar el backend de
 
 Versión portfolio funcional.
 
-La API puede levantarse localmente con Docker, cargar fixtures, documentarse con Swagger/OpenAPI, consultarse desde un frontend Angular y crear pedidos simulados.
+La API puede levantarse localmente con Docker, cargar fixtures, documentarse con Swagger/OpenAPI y quedar disponible para ser consumida desde un frontend Angular.
 
 ## Proyecto relacionado
 
@@ -33,7 +33,7 @@ Incluye:
 - pedidos simulados
 - descuento de stock
 - documentación OpenAPI
-- CORS para Angular en desarrollo
+- CORS y preparación para integración con Angular
 - healthcheck
 - paginación en productos
 
@@ -81,8 +81,8 @@ Si preferís los comandos directos:
 
 ```bash
 docker compose up -d --build
-docker compose exec app php bin/console doctrine:migrations:migrate
-docker compose exec app php bin/console doctrine:fixtures:load
+docker compose exec app php bin/console doctrine:migrations:migrate -n
+docker compose exec app php bin/console doctrine:fixtures:load -n
 ```
 
 ## Variables de entorno
@@ -451,7 +451,7 @@ La cobertura puede ampliarse en futuras iteraciones.
 ## Próximos pasos
 
 - Ampliar cobertura de tests funcionales.
-- Integrar progresivamente con NexoShop Angular.
+- Preparar la integración progresiva con NexoShop Angular.
 - Agregar autenticación de usuarios.
 - Crear panel administrativo.
 - Agregar estados avanzados de pedido.
@@ -466,6 +466,6 @@ La cobertura puede ampliarse en futuras iteraciones.
 - migraciones y fixtures
 - validaciones
 - documentación Swagger
-- integración con Angular
+- CORS y preparación para integración con Angular
 - paginación y filtros
 - manejo de errores JSON
